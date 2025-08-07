@@ -1,10 +1,6 @@
-import type { Metadata } from "next"
-import { AdminProvider } from "@/contexts/admin-context"
+"use client"
 
-export const metadata: Metadata = {
-  title: "Admin Dashboard - Zapply",
-  description: "Administrative interface for managing Zapply job platform",
-}
+import { AdminProvider } from "@/contexts/admin-context"
 
 export default function AdminLayout({
   children,

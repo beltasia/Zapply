@@ -1,442 +1,283 @@
 "use client"
 
-import { useState, useMemo } from 'react'
-import { Activity, Users, AlertTriangle, Clock, Download, Filter, Search, Wifi, WifiOff, Eye, Shield, TrendingUp } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useState } from "react"
+import { Search, Filter, Download, Wifi, WifiOff, Activity, Clock, AlertTriangle, Users, TrendingUp } from 'lucide-react'
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useActivityMonitor } from '@/hooks/use-activity-monitor'
-import { ACTIVITY_ACTIONS, ActivityLog } from '@/lib/activity-types'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
+import { useActivityMonitor } from "@/hooks/use-activity-monitor"
+import { AdminActivity, ACTIVITY_CATEGORIES, SEVERITY_COLORS, STATUS_COLORS } from "@/lib/activity-types"
 
-const SEVERITY_COLORS = {
-  low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-  critical: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+interface ActivityDashboardProps {
+  className?: string
 }
 
-const STATUS_COLORS = {
-  success: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-}
-
-const CHART_COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#f97316']
-
-export default function ActivityDashboard() {
-  const { activities, liveActivities, stats, isConnected, loading, filterActivities, exportActivities, setIsConnected } = useActivityMonitor()
-  
-  const [filters, setFilters] = useState({
-    adminId: '',
-    category: '',
-    severity: '',
-    status: '',
-    search: ''
-  })
-  
-  const [selectedActivity, setSelectedActivity] = useState<ActivityLog | null>(null)
+export default function ActivityDashboard({ className }: ActivityDashboardProps) {
+  const { activities, stats, isConnected, exportToCsv } = useActivityMonitor()
+  const [searchTerm, setSearchTerm] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [severityFilter, setSeverityFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedActivity, setSelectedActivity] = useState<AdminActivity | null>(null)
+
   const itemsPerPage = 20
 
-  const filteredActivities = useMemo(() => {
-    return filterActivities(filters)
-  }, [activities, filters, filterActivities])
+  // Filter activities
+  const filteredActivities = activities.filter(activity => {
+    const matchesSearch = searchTerm === "" || 
+      activity.adminName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      activity.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      activity.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      activity.resource?.toLowerCase().includes(searchTerm.toLowerCase())
 
-  const paginatedActivities = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    return filteredActivities.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredActivities, currentPage])
+    const matchesCategory = categoryFilter === "all" || activity.category === categoryFilter
+    const matchesSeverity = severityFilter === "all" || activity.severity === severityFilter
+    const matchesStatus = statusFilter === "all" || activity.status === statusFilter
 
+    return matchesSearch && matchesCategory && matchesSeverity && matchesStatus
+  })
+
+  // Paginate activities
   const totalPages = Math.ceil(filteredActivities.length / itemsPerPage)
+  const paginatedActivities = filteredActivities.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
 
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }))
-    setCurrentPage(1)
-  }
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
 
-  const clearFilters = () => {
-    setFilters({
-      adminId: '',
-      category: '',
-      severity: '',
-      status: '',
-      search: ''
-    })
-    setCurrentPage(1)
-  }
-
-  const formatTimestamp = (timestamp: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }).format(timestamp)
-  }
-
-  const getActionLabel = (action: string) => {
-    return ACTIVITY_ACTIONS[action as keyof typeof ACTIVITY_ACTIONS]?.label || action
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
   }
 
   return (
-    <div className="space-y-6">
-      {/* Connection Status & Live Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    Real-time Activity Monitor
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    {isConnected ? (
-                      <Badge className="bg-green-100 text-green-800">
-                        <Wifi className="h-3 w-3 mr-1" />
-                        Connected
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive">
-                        <WifiOff className="h-3 w-3 mr-1" />
-                        Disconnected
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsConnected(!isConnected)}
-                >
-                  {isConnected ? 'Disconnect' : 'Connect'}
-                </Button>
-              </div>
-              <CardDescription>Live admin activity feed</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-64">
-                <div className="space-y-2">
-                  {liveActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${
-                          activity.severity === 'critical' ? 'bg-red-500' :
-                          activity.severity === 'high' ? 'bg-orange-500' :
-                          activity.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                        }`} />
-                        <div>
-                          <p className="text-sm font-medium">{activity.adminName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {activity.action} - {activity.resource}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={STATUS_COLORS[activity.status]} variant="outline">
-                          {activity.status}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTimestamp(activity.timestamp)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  {liveActivities.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No recent activity</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active Admins</p>
-                  <p className="text-2xl font-bold">{stats?.activeAdmins || 0}</p>
-                </div>
-                <Users className="h-8 w-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Last 24h</p>
-                  <p className="text-2xl font-bold">{stats?.activitiesLast24h || 0}</p>
-                </div>
-                <Clock className="h-8 w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Failed Actions</p>
-                  <p className="text-2xl font-bold text-red-600">{stats?.failedActions || 0}</p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Critical Actions</p>
-                  <p className="text-2xl font-bold text-orange-600">{stats?.criticalActions || 0}</p>
-                </div>
-                <Shield className="h-8 w-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Analytics Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Activity Trend (24h)</CardTitle>
-            <CardDescription>Hourly activity distribution</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={stats?.activityByHour || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Actions</CardTitle>
-            <CardDescription>Most frequent admin actions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={stats?.topActions || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="action" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Activity by Category</CardTitle>
-            <CardDescription>Distribution across categories</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={stats?.activityByCategory || []}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="count"
-                  label={({ category, count }) => `${category}: ${count}`}
-                >
-                  {(stats?.activityByCategory || []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Most Active Admins</CardTitle>
-            <CardDescription>Admin activity ranking</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {(stats?.activityByAdmin || []).slice(0, 5).map((admin, index) => (
-                <div key={admin.adminName} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium">{admin.adminName}</p>
-                      <p className="text-xs text-muted-foreground">{admin.role.replace('_', ' ')}</p>
-                    </div>
-                  </div>
-                  <Badge variant="outline">{admin.count} actions</Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Activity Log */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Activity Log</CardTitle>
-              <CardDescription>
-                Showing {filteredActivities.length} of {activities.length} activities
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => exportActivities(filteredActivities)}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </div>
+    <div className={className}>
+      {/* Connection Status */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
+            isConnected 
+              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+          }`}>
+            {isConnected ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+            {isConnected ? 'Live Monitoring' : 'Disconnected'}
           </div>
+          <span className="text-sm text-muted-foreground">
+            {filteredActivities.length} activities
+          </span>
+        </div>
+        <Button onClick={() => exportToCsv(filteredActivities)} variant="outline" size="sm">
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Users className="h-5 w-5 text-blue-500" />
+              </div>
+              <div className="text-2xl font-bold text-blue-600">{stats.activeAdmins}</div>
+              <div className="text-sm text-muted-foreground">Active Admins</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Activity className="h-5 w-5 text-green-500" />
+              </div>
+              <div className="text-2xl font-bold text-green-600">{stats.recentActivity}</div>
+              <div className="text-sm text-muted-foreground">Recent Activity</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <div className="text-2xl font-bold text-red-600">{stats.failedActions}</div>
+              <div className="text-sm text-muted-foreground">Failed Actions</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <TrendingUp className="h-5 w-5 text-orange-500" />
+              </div>
+              <div className="text-2xl font-bold text-orange-600">{stats.criticalActions}</div>
+              <div className="text-sm text-muted-foreground">Critical Actions</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Clock className="h-5 w-5 text-purple-500" />
+              </div>
+              <div className="text-2xl font-bold text-purple-600">{stats.totalActivities}</div>
+              <div className="text-sm text-muted-foreground">Total Activities</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Filters */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg">Activity Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-4 mb-6">
-            <div className="relative flex-1 min-w-64">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search activities..."
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
-            <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-              <SelectTrigger className="w-40">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger>
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
-                <SelectItem value="auth">Authentication</SelectItem>
-                <SelectItem value="jobs">Jobs</SelectItem>
-                <SelectItem value="users">Users</SelectItem>
-                <SelectItem value="settings">Settings</SelectItem>
-                <SelectItem value="security">Security</SelectItem>
-                <SelectItem value="system">System</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
+                {Object.entries(ACTIVITY_CATEGORIES).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Select value={filters.severity} onValueChange={(value) => handleFilterChange('severity', value)}>
-              <SelectTrigger className="w-32">
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger>
                 <SelectValue placeholder="Severity" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Levels</SelectItem>
+                <SelectItem value="all">All Severities</SelectItem>
                 <SelectItem value="low">Low</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
                 <SelectItem value="high">High</SelectItem>
                 <SelectItem value="critical">Critical</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filters.status} onValueChange={(value) => handleFilterChange('status', value)}>
-              <SelectTrigger className="w-32">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={clearFilters}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSearchTerm("")
+                setCategoryFilter("all")
+                setSeverityFilter("all")
+                setStatusFilter("all")
+                setCurrentPage(1)
+              }}
+            >
               Clear Filters
             </Button>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Activity Table */}
+      {/* Activity Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Activity Log</CardTitle>
+          <CardDescription>Real-time admin activity monitoring</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Time</TableHead>
                   <TableHead>Admin</TableHead>
                   <TableHead>Action</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Resource</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Severity</TableHead>
                   <TableHead>IP Address</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Details</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedActivities.map((activity) => (
-                  <TableRow key={activity.id}>
+                  <TableRow key={activity.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="text-sm">
                       {formatTimestamp(activity.timestamp)}
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{activity.adminName}</p>
-                        <p className="text-xs text-muted-foreground">{activity.adminRole.replace('_', ' ')}</p>
+                        <div className="font-medium text-sm">{activity.adminName}</div>
+                        <div className="text-xs text-muted-foreground">{activity.adminEmail}</div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <p className="font-medium">{getActionLabel(activity.action)}</p>
+                      <code className="text-xs bg-muted px-2 py-1 rounded">
+                        {activity.action}
+                      </code>
                     </TableCell>
-                    <TableCell>{activity.resource}</TableCell>
                     <TableCell>
-                      <Badge className={STATUS_COLORS[activity.status]} variant="outline">
+                      <Badge variant="outline" className="text-xs">
+                        {ACTIVITY_CATEGORIES[activity.category]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {activity.resource || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs ${STATUS_COLORS[activity.status]}`}>
                         {activity.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={SEVERITY_COLORS[activity.severity]} variant="outline">
+                      <Badge className={`text-xs ${SEVERITY_COLORS[activity.severity]}`}>
                         {activity.severity}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm font-mono">{activity.ipAddress}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-sm font-mono">
+                      {activity.ipAddress}
+                    </TableCell>
+                    <TableCell className="max-w-xs">
+                      <div className="truncate text-sm">
+                        {activity.details}
+                      </div>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button variant="ghost" size="sm" onClick={() => setSelectedActivity(activity)}>
-                            <Eye className="h-4 w-4" />
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-xs mt-1 h-6 px-2"
+                            onClick={() => setSelectedActivity(activity)}
+                          >
+                            View Details
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl">
@@ -448,57 +289,43 @@ export default function ActivityDashboard() {
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="text-sm font-medium">Timestamp</label>
-                                  <p className="text-sm">{selectedActivity.timestamp.toLocaleString()}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(selectedActivity.timestamp).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Duration</label>
+                                  <p className="text-sm text-muted-foreground">
+                                    {selectedActivity.duration}ms
+                                  </p>
                                 </div>
                                 <div>
                                   <label className="text-sm font-medium">Admin</label>
-                                  <p className="text-sm">{selectedActivity.adminName} ({selectedActivity.adminRole})</p>
-                                </div>
-                                <div>
-                                  <label className="text-sm font-medium">Action</label>
-                                  <p className="text-sm">{getActionLabel(selectedActivity.action)}</p>
-                                </div>
-                                <div>
-                                  <label className="text-sm font-medium">Resource</label>
-                                  <p className="text-sm">{selectedActivity.resource}</p>
-                                </div>
-                                <div>
-                                  <label className="text-sm font-medium">Status</label>
-                                  <Badge className={STATUS_COLORS[selectedActivity.status]} variant="outline">
-                                    {selectedActivity.status}
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <label className="text-sm font-medium">Severity</label>
-                                  <Badge className={SEVERITY_COLORS[selectedActivity.severity]} variant="outline">
-                                    {selectedActivity.severity}
-                                  </Badge>
+                                  <p className="text-sm text-muted-foreground">
+                                    {selectedActivity.adminName} ({selectedActivity.adminEmail})
+                                  </p>
                                 </div>
                                 <div>
                                   <label className="text-sm font-medium">IP Address</label>
-                                  <p className="text-sm font-mono">{selectedActivity.ipAddress}</p>
-                                </div>
-                                <div>
-                                  <label className="text-sm font-medium">Resource ID</label>
-                                  <p className="text-sm font-mono">{selectedActivity.resourceId}</p>
+                                  <p className="text-sm text-muted-foreground font-mono">
+                                    {selectedActivity.ipAddress}
+                                  </p>
                                 </div>
                               </div>
                               <div>
                                 <label className="text-sm font-medium">Details</label>
-                                <p className="text-sm bg-muted p-3 rounded">{selectedActivity.details}</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {selectedActivity.details}
+                                </p>
                               </div>
                               <div>
-                                <label className="text-sm font-medium">User Agent</label>
-                                <p className="text-xs text-muted-foreground break-all">{selectedActivity.userAgent}</p>
-                              </div>
-                              {selectedActivity.metadata && (
-                                <div>
-                                  <label className="text-sm font-medium">Metadata</label>
-                                  <pre className="text-xs bg-muted p-3 rounded overflow-auto">
+                                <label className="text-sm font-medium">Metadata</label>
+                                <ScrollArea className="h-32 w-full border rounded p-3 mt-1">
+                                  <pre className="text-xs">
                                     {JSON.stringify(selectedActivity.metadata, null, 2)}
                                   </pre>
-                                </div>
-                              )}
+                                </ScrollArea>
+                              </div>
                             </div>
                           )}
                         </DialogContent>
@@ -512,10 +339,10 @@ export default function ActivityDashboard() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredActivities.length)} of {filteredActivities.length} activities
-              </p>
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredActivities.length)} of {filteredActivities.length} activities
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -541,8 +368,7 @@ export default function ActivityDashboard() {
           )}
 
           {filteredActivities.length === 0 && (
-            <div className="text-center py-12">
-              <Activity className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <div className="text-center py-8">
               <p className="text-muted-foreground">No activities found matching your criteria.</p>
             </div>
           )}

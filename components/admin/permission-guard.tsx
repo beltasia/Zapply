@@ -2,54 +2,44 @@
 
 import { ReactNode } from 'react'
 import { useAdmin } from '@/contexts/admin-context'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Shield } from 'lucide-react'
+import { hasPermission, hasAnyPermission, hasAllPermissions } from '@/lib/roles'
 
 interface PermissionGuardProps {
+  children: ReactNode
   permission?: string
   permissions?: string[]
   requireAll?: boolean
-  children: ReactNode
   fallback?: ReactNode
 }
 
 export default function PermissionGuard({ 
-  permission, 
-  permissions = [], 
-  requireAll = false,
   children, 
-  fallback 
+  permission, 
+  permissions, 
+  requireAll = false,
+  fallback = null 
 }: PermissionGuardProps) {
-  const { hasPermission, hasAnyPermission } = useAdmin()
+  const { currentAdmin, isLoading } = useAdmin()
+
+  if (isLoading) {
+    return <div>Loading...</div>
+  }
+
+  if (!currentAdmin) {
+    return fallback
+  }
 
   let hasAccess = false
 
   if (permission) {
-    hasAccess = hasPermission(permission)
-  } else if (permissions.length > 0) {
-    if (requireAll) {
-      hasAccess = permissions.every(p => hasPermission(p))
-    } else {
-      hasAccess = hasAnyPermission(permissions)
-    }
+    hasAccess = hasPermission(currentAdmin.role, permission)
+  } else if (permissions) {
+    hasAccess = requireAll 
+      ? hasAllPermissions(currentAdmin.role, permissions)
+      : hasAnyPermission(currentAdmin.role, permissions)
   } else {
-    hasAccess = true // No permissions required
+    hasAccess = true // No permission requirements
   }
 
-  if (!hasAccess) {
-    if (fallback) {
-      return <>{fallback}</>
-    }
-    
-    return (
-      <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
-        <Shield className="h-4 w-4" />
-        <AlertDescription>
-          You don't have permission to access this feature.
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
-  return <>{children}</>
+  return hasAccess ? <>{children}</> : fallback
 }

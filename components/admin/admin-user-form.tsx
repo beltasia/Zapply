@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,26 +15,11 @@ interface AdminUserFormProps {
 
 export default function AdminUserForm({ admin, roles, onSave, onCancel }: AdminUserFormProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    role: '',
-    status: 'active'
+    name: admin?.name || '',
+    email: admin?.email || '',
+    role: admin?.role || '',
+    status: admin?.status || 'active'
   })
-
-  useEffect(() => {
-    if (admin) {
-      setFormData({
-        name: admin.name || '',
-        email: admin.email || '',
-        role: admin.role || '',
-        status: admin.status || 'active'
-      })
-    }
-  }, [admin])
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,32 +28,30 @@ export default function AdminUserForm({ admin, roles, onSave, onCancel }: AdminU
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Full Name *</Label>
+      <div>
+        <Label htmlFor="name">Full Name</Label>
         <Input
           id="name"
           value={formData.name}
-          onChange={(e) => handleInputChange('name', e.target.value)}
-          placeholder="Enter full name"
+          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
           required
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="email">Email *</Label>
+      <div>
+        <Label htmlFor="email">Email Address</Label>
         <Input
           id="email"
           type="email"
           value={formData.email}
-          onChange={(e) => handleInputChange('email', e.target.value)}
-          placeholder="Enter email address"
+          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
           required
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="role">Role *</Label>
-        <Select value={formData.role} onValueChange={(value) => handleInputChange('role', value)}>
+      <div>
+        <Label htmlFor="role">Role</Label>
+        <Select value={formData.role} onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}>
           <SelectTrigger>
             <SelectValue placeholder="Select a role" />
           </SelectTrigger>
@@ -82,9 +65,9 @@ export default function AdminUserForm({ admin, roles, onSave, onCancel }: AdminU
         </Select>
       </div>
 
-      <div className="space-y-2">
+      <div>
         <Label htmlFor="status">Status</Label>
-        <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
+        <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -95,12 +78,12 @@ export default function AdminUserForm({ admin, roles, onSave, onCancel }: AdminU
         </Select>
       </div>
 
-      <div className="flex gap-4 pt-4">
-        <Button type="submit" className="flex-1">
-          {admin ? 'Update Admin' : 'Create Admin'}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+      <div className="flex justify-end gap-3 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
+        </Button>
+        <Button type="submit">
+          {admin ? 'Update Admin' : 'Create Admin'}
         </Button>
       </div>
     </form>
