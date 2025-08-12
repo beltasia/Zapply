@@ -1,30 +1,41 @@
-# Zapply Firebase config
+# Zapply
+---
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+## 🚀 Overview
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/mellisas-projects-b938dd2d/v0-zapply-firebase-config)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/Z6KW9kKmQTm)
+Zapply is a vibrant, TypeScript-fueled chat application. Built with Next.js and styled using Tailwind CSS, it seamlessly syncs with your v0.dev project. Push changes, and boom — Vercel deploys it for you, no fuss.
 
-## Overview
+---
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+## 🌐 Live Version
 
-## Deployment
+Catch it in action:  
+**Deployed at:** [Zapply on Vercel](https://vercel.com/mellisas-projects-b938dd2d/v0-zapply-firebase-config)  
+**Source Code:** [Zapply on GitHub](https://github.com/beltasia/Zapply)
 
-Your project is live at:
+---
 
-**[https://vercel.com/mellisas-projects-b938dd2d/v0-zapply-firebase-config](https://vercel.com/mellisas-projects-b938dd2d/v0-zapply-firebase-config)**
+## 🛠 Tech Stack
 
-## Build your app
+- **Next.js** (TypeScript) – reactive front-end vibes  
+- **Tailwind CSS** – sleek, minimal styling  
+- **v0.dev** – backend sync magic  
+- **Vercel** – serverless deployment  
+- **Folder Structure:**
+  - `app/` – entry point
+  - `components/` – UI building blocks
+  - `contexts/` & `hooks/` – state and logic
+  - `lib/` – reusable utilities
+  - `public/` – static assets
+  - `styles/` – Tailwind tweaks
+- Config files: `next.config.mjs`, `tailwind.config.ts`, `postcss.config.mjs`, `tsconfig.json`  
+- Package manager: `pnpm`
 
-Continue building your app on:
+---
 
-**[https://v0.dev/chat/projects/Z6KW9kKmQTm](https://v0.dev/chat/projects/Z6KW9kKmQTm)**
+## ⚡ Getting Started
 
-## How It Works
-
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+1. **Clone the repo**  
+   ```bash
+   git clone https://github.com/beltasia/Zapply.git
+   cd Zapply
